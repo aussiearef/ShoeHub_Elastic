@@ -14,15 +14,13 @@ namespace ShoeHub.DataGenerator
             Console.WriteLine("This utility program will populate randomly generated data to your Elasticsearch instance!");
             Console.WriteLine("The generated data belong sot an imaginary company called Shoe Hub\n");
             Console.WriteLine($"The Index will be created automatically. It is called '{IndexName}'");
-            getIpAddress:
 
-            Console.Write("Enter the URL of your Elasticsearch instance (including the port number) e.g. http://localhost:9200: ");
+            Console.Write("Enter the URL of your Elasticsearch instance (including the port number) e.g. http://localhost:9200 (Enter to use default): ");
             var ipAddress = Console.ReadLine();
 
             if (string.IsNullOrEmpty(ipAddress))
             {
-                Console.WriteLine("Invalid ES address. Try again, or press Ctrl-C to stop!");
-                goto getIpAddress;
+                ipAddress = "http://localhost:9200";
             }
 
 
@@ -37,7 +35,18 @@ namespace ShoeHub.DataGenerator
                 goto getNumberOfDataPoints;
             }
 
-            var esClient = new Nest.ElasticClient(new Uri(ipAddress));
+            var connSettings = new Nest.ConnectionSettings(new Uri(ipAddress)).DefaultIndex(IndexName);
+            var esClient = new Nest.ElasticClient(connSettings);
+
+            if (!esClient.IndexExists(IndexName).Exists)
+            {
+                //esClient.CreateIndex(IndexName,m=>m.Map<Model>(map=>map.Properties(p=>p.Date(d=>d.Name(n=>n.TimeStamp).Format("epoch_second")).
+                //Text(t=>t.Name(n=>n.Metric)).Number(n=>n.Name(nn=>nn.Value).Type(Nest.NumberType.Double)
+
+                //))));
+
+                esClient.CreateIndex(IndexName, m =>m.Mappings(mm=>mm.Map<Model>(model=>model.AutoMap())));
+            }
 
             const short Refund = 0;
             var countryCodes = new[]{"AU","US","IN"};
@@ -54,9 +63,9 @@ namespace ShoeHub.DataGenerator
 
                 var shoeType = shoeTypes[randomGenerator.Next(shoeTypes.Length)];
                 var salesBucketName = $"shoehub.sales.{shoeType}";
-                var salesBucket = new Model {Metric=salesBucketName,Value=1};
+                var salesModel = new Model {Metric=salesBucketName,Value=1};
 
-                var res= esClient.Index(salesBucket, x => x.Index(IndexName));
+                var res= esClient.IndexDocument<Model>(salesModel);
                 if (res.ServerError != null)
                 {
                     throw new Exception(res.ServerError.Error.Reason);
@@ -71,7 +80,7 @@ namespace ShoeHub.DataGenerator
                     var refundValue = randomGenerator.Next(1000);
 
                     var refundModel = new Model { Metric = refundBucketName, Value = refundValue };
-                    esClient.Index(refundModel, x => x.Index(IndexName));
+                    esClient.IndexDocument(refundModel);
                 }
                 else
                 {
@@ -79,8 +88,9 @@ namespace ShoeHub.DataGenerator
                     var paymentMethodBucketName = $"shoehub.{countryCode}.payments.{paymentMethod}";
                     var paymentValue = randomGenerator.Next(1000);
                     var paymentModel = new Model {Metric= paymentMethodBucketName , Value=paymentValue };
+                    esClient.IndexDocument(paymentModel);
                 }
-                Thread.Sleep(new TimeSpan(0,0,0, randomGenerator.Next(60)));
+                Thread.Sleep(new TimeSpan(0,0,0, randomGenerator.Next(10)));
             }
 
             Console.WriteLine("All datapoints were sent to Elasticsearch. Press any keys...");

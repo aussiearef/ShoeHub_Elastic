@@ -3,12 +3,13 @@ using System;
 
 namespace ShoeHub.DataGenerator
 {
-    public class Model
+    [ElasticsearchType(Name="shoehub")]
+   public class Model
     {
         public string Metric { get; set; }
         public double  Value { get; set; }
 
-        [Nest.Date(Format = "epoch_millis")]
-        public int TimeStamp => DateTime.Now.ToEpoch();
+        [Nest.Date(Format = "epoch_second")]
+        public string TimeStamp => DateTime.Now.ToEpoch().ToString();
     }
 }
